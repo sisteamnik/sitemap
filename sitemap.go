@@ -95,3 +95,7 @@ func SiteMapIndex(folder, indexFile, baseurl string) error {
 	err = ioutil.WriteFile(indexFile, buffer.Bytes(), 0755)
 	return err
 }
+
+func AddItem(f string, item *Item) error {
+	return nil
+}
