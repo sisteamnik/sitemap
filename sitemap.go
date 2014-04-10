@@ -5,7 +5,6 @@ import (
 	"time"
 	"bytes"
 	"io/ioutil"
-	"compress/gzip"
 	"os"
 	"strings"
 )
@@ -15,7 +14,7 @@ const (
 	<urlset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9 http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd"
 	xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`
-	footer = ` </urlset>`
+	footer = `	</urlset>`
 	template = `
 	 <url>
 	   <loc>%s</loc>
@@ -65,11 +64,9 @@ func SiteMap(f string, items []*Item) error {
 		return err
 	}
 	defer fo.Close()
-	buffer.WriteString(footer)
+	buffer.WriteString("\n" + footer)
 
-	zip := gzip.NewWriter(fo)
-	defer zip.Close()
-	_, err = zip.Write(buffer.Bytes())
+	_, err = fo.Write(buffer.Bytes())
 	if err != nil {
 		return err
 	}
@@ -84,7 +81,7 @@ func SiteMapIndex(folder, indexFile, baseurl string) error {
 		return err
 	}
 	for _, f := range fs {
-		if strings.HasSuffix(f.Name(), ".xml.gz") {
+		if strings.HasSuffix(f.Name(), ".xml") {
 			fmt.Println(f.Name())
 			s := fmt.Sprintf(indexTemplate, baseurl, f.Name(), time.Now().Format("2006-01-02T15:04:05+08:00"))
 			//fmt.Println(s)
@@ -97,5 +94,20 @@ func SiteMapIndex(folder, indexFile, baseurl string) error {
 }
 
 func AddItem(f string, item *Item) error {
+	fi, err := os.Stat(f)
+	if fi == nil && err != nil {
+	  SiteMap(f, []*Item{item})
+	  return nil
+	}
+	content, err := ioutil.ReadFile(f)
+	if err!=nil {
+	  panic(err)
+	}
+	lines := string(content)
+	tmp := 	strings.Repeat(item.String(),40000)
+	xml := strings.Replace(lines, "\n" + footer, tmp + "\n" + footer, 1)
+	err = ioutil.WriteFile(f, []byte(xml), 0644)
+    if err != nil { panic(err) }
+	fmt.Println(footer)
 	return nil
 }
