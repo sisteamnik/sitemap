@@ -1,4 +1,4 @@
 sitemap
 =======
 
-Generate gzipped Google sitemap and sitemap index with golang
+Generate sitemap and sitemap index with golang

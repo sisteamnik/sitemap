@@ -104,8 +104,7 @@ func AddItem(f string, item *Item) error {
 	  panic(err)
 	}
 	lines := string(content)
-	tmp := 	strings.Repeat(item.String(),40000)
-	xml := strings.Replace(lines, "\n" + footer, tmp + "\n" + footer, 1)
+	xml := strings.Replace(lines, "\n" + footer, item.String() + "\n" + footer, 1)
 	err = ioutil.WriteFile(f, []byte(xml), 0644)
     if err != nil { panic(err) }
 	fmt.Println(footer)
