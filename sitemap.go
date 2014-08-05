@@ -1,12 +1,14 @@
 package sitemap
 
 import (
-	"fmt"
-	"time"
 	"bytes"
+	"encoding/xml"
+	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"strings"
+	"time"
 )
 
 const (
@@ -14,7 +16,7 @@ const (
 	<urlset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9 http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd"
 	xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`
-	footer = `	</urlset>`
+	footer   = `	</urlset>`
 	template = `
 	 <url>
 	   <loc>%s</loc>
@@ -36,12 +38,15 @@ const (
 	`
 )
 
-type Item struct {
-	Loc        string
-	LastMod    time.Time
-	Changefreq string
-	Priority   float32
+type UrlSet struct {
+	Ursl []*Item `xml:"url"`
+}
 
+type Item struct {
+	Loc        string    `xml:"loc"`
+	LastMod    time.Time `xml:"lastmod"`
+	Changefreq string    `xml:"changefreq"`
+	Priority   float32   `xml:"priority"`
 }
 
 func (item *Item) String() string {
@@ -53,7 +58,10 @@ func (item *Item) String() string {
 func SiteMap(f string, items []*Item) error {
 	var buffer bytes.Buffer
 	buffer.WriteString(header)
-	for _, item := range (items) {
+	for _, item := range items {
+		if item == nil {
+			continue
+		}
 		_, err := buffer.WriteString(item.String())
 		if err != nil {
 			return err
@@ -93,20 +101,76 @@ func SiteMapIndex(folder, indexFile, baseurl string) error {
 	return err
 }
 
-func AddItem(f string, item *Item) error {
+func Add(f string, item *Item) error {
+	if ExistLoc(f, item.Loc) {
+		return errors.New("Location already exist")
+	}
 	fi, err := os.Stat(f)
 	if fi == nil && err != nil {
-	  SiteMap(f, []*Item{item})
-	  return nil
+		return SiteMap(f, []*Item{item})
 	}
 	content, err := ioutil.ReadFile(f)
-	if err!=nil {
-	  panic(err)
+	if err != nil {
+		return err
 	}
 	lines := string(content)
-	xml := strings.Replace(lines, "\n" + footer, item.String() + "\n" + footer, 1)
+	xml := strings.Replace(lines, "\n"+footer, item.String()+"\n"+footer, 1)
 	err = ioutil.WriteFile(f, []byte(xml), 0644)
-    if err != nil { panic(err) }
-	fmt.Println(footer)
+	if err != nil {
+		return err
+	}
 	return nil
+}
+
+func Update(fp string, item *Item) error {
+	if !ExistLoc(fp, item.Loc) {
+		return errors.New("Location not exist")
+	}
+	f, err := ioutil.ReadFile(fp)
+	if err != nil {
+		return err
+	}
+	v := UrlSet{}
+	err = xml.Unmarshal(f, &v)
+	if err != nil {
+		return err
+	}
+	for _, v := range v.Ursl {
+		if item.Loc == v.Loc {
+			v.LastMod = item.LastMod
+		}
+	}
+	SiteMap(fp, v.Ursl)
+	return nil
+}
+
+func Delete(fp string, item *Item) error {
+	f, err := ioutil.ReadFile(fp)
+	if err != nil {
+		return err
+	}
+	v := UrlSet{}
+	err = xml.Unmarshal(f, &v)
+	if err != nil {
+		return err
+	}
+	for i, k := range v.Ursl {
+		if item.Loc == k.Loc {
+			v.Ursl[i] = nil
+		}
+	}
+	SiteMap(fp, v.Ursl)
+	return nil
+}
+
+func ExistLoc(fp string, l string) bool {
+	f, err := ioutil.ReadFile(fp)
+	if err != nil {
+		return false
+	}
+	loc := "<loc>" + l + "</loc>"
+	if strings.Index(string(f), loc) != -1 {
+		return true
+	}
+	return false
 }
