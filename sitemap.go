@@ -14,10 +14,9 @@ import (
 const (
 	TimeFormat = "2006-01-02T15:04:05+08:00"
 	header     = `<?xml version="1.0" encoding="UTF-8"?>
-	<urlset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9 http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd"
-	xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`
-	footer   = `	</urlset>`
+	<urlset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9 http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd" xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`
+	footer = `
+	</urlset>`
 	template = `
 	 <url>
 	   <loc>%s</loc>
@@ -27,9 +26,9 @@ const (
 	 </url> 	`
 
 	indexHeader = `<?xml version="1.0" encoding="UTF-8"?>
-      <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`
+  <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`
 	indexFooter = `
-</sitemapindex>
+  </sitemapindex>
 	`
 	indexTemplate = `
     <sitemap>
@@ -39,13 +38,17 @@ const (
 	`
 )
 
+type IndexItems []ItemIndex
+
 type TSiteMapIndex struct {
-	XMLName xml.Name    `xml:"sitemapindex"`
-	Items   []ItemIndex `xml:"sitemap"`
+	XMLName xml.Name   `xml:"sitemapindex"`
+	Items   IndexItems `xml:"sitemap"`
 }
 
+type Items []Item
+
 type UrlSet struct {
-	Ursl []*Item `xml:"url"`
+	Ursl Items `xml:"url"`
 }
 
 type ItemIndex struct {
@@ -53,24 +56,11 @@ type ItemIndex struct {
 	LastMod time.Time `xml:"lastmod"`
 }
 
-type Item struct {
-	Loc        string    `xml:"loc"`
-	LastMod    time.Time `xml:"lastmod"`
-	Changefreq string    `xml:"changefreq"`
-	Priority   float32   `xml:"priority"`
-}
-
-func (item *Item) String() string {
-	//2012-08-30T01:23:57+08:00
-	//Mon Jan 2 15:04:05 -0700 MST 2006
-	return fmt.Sprintf(template, item.Loc, item.LastMod.Format("2006-01-02T15:04:05+08:00"), item.Changefreq, item.Priority)
-}
-
-func SiteMap(f string, items []*Item) error {
+func SiteMap(f string, items Items) error {
 	var buffer bytes.Buffer
 	buffer.WriteString(header)
 	for _, item := range items {
-		if item == nil {
+		if item.Loc == "" {
 			continue
 		}
 		_, err := buffer.WriteString(item.String())
@@ -92,18 +82,18 @@ func SiteMap(f string, items []*Item) error {
 	return err
 }
 
-func Parse(in []byte) ([]*Item, error) {
+func Parse(in []byte) (Items, error) {
 	v := UrlSet{}
 	err := xml.Unmarshal(in, &v)
 	return v.Ursl, err
 }
 
-func ParseIndex(in []byte) ([]*Item, error) {
+func ParseIndex(in []byte) (Items, error) {
 	v := TSiteMapIndex{}
 	err := xml.Unmarshal(in, &v)
-	var res = []*Item{}
+	var res = Items{}
 	for _, i := range v.Items {
-		res = append(res, &Item{Loc: i.Loc, LastMod: i.LastMod})
+		res = append(res, Item{Loc: i.Loc, LastMod: i.LastMod})
 	}
 	return res, err
 }
@@ -128,13 +118,13 @@ func SiteMapIndex(folder, indexFile, baseurl string) error {
 	return err
 }
 
-func Add(f string, item *Item) error {
+func Add(f string, item Item) error {
 	if ExistLoc(f, item.Loc) {
 		return errors.New("Location already exist")
 	}
 	fi, err := os.Stat(f)
 	if fi == nil && err != nil {
-		return SiteMap(f, []*Item{item})
+		return SiteMap(f, Items{item})
 	}
 	content, err := ioutil.ReadFile(f)
 	if err != nil {
@@ -171,7 +161,7 @@ func Update(fp string, item *Item) error {
 	return nil
 }
 
-func Delete(fp string, item *Item) error {
+func Delete(fp string, item Item) error {
 	f, err := ioutil.ReadFile(fp)
 	if err != nil {
 		return err
@@ -183,7 +173,9 @@ func Delete(fp string, item *Item) error {
 	}
 	for i, k := range v.Ursl {
 		if item.Loc == k.Loc {
-			v.Ursl[i] = nil
+
+			// delete v.Ursl[i]
+			v.Ursl = v.Ursl[:i+copy(v.Ursl[i:], v.Ursl[i+1:])]
 		}
 	}
 	SiteMap(fp, v.Ursl)

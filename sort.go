@@ -1,6 +1,6 @@
 package sitemap
 
-type ByTime []*Item
+type ByTime Items
 
 func (a ByTime) Len() int      { return len(a) }
 func (a ByTime) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
