@@ -12,7 +12,8 @@ import (
 )
 
 const (
-	header = `<?xml version="1.0" encoding="UTF-8"?>
+	TimeFormat = "2006-01-02T15:04:05+08:00"
+	header     = `<?xml version="1.0" encoding="UTF-8"?>
 	<urlset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9 http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd"
 	xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`
@@ -38,8 +39,18 @@ const (
 	`
 )
 
+type TSiteMapIndex struct {
+	XMLName xml.Name    `xml:"sitemapindex"`
+	Items   []ItemIndex `xml:"sitemap"`
+}
+
 type UrlSet struct {
 	Ursl []*Item `xml:"url"`
+}
+
+type ItemIndex struct {
+	Loc     string    `xml:"loc"`
+	LastMod time.Time `xml:"lastmod"`
 }
 
 type Item struct {
@@ -79,6 +90,22 @@ func SiteMap(f string, items []*Item) error {
 		return err
 	}
 	return err
+}
+
+func Parse(in []byte) ([]*Item, error) {
+	v := UrlSet{}
+	err := xml.Unmarshal(in, &v)
+	return v.Ursl, err
+}
+
+func ParseIndex(in []byte) ([]*Item, error) {
+	v := TSiteMapIndex{}
+	err := xml.Unmarshal(in, &v)
+	var res = []*Item{}
+	for _, i := range v.Items {
+		res = append(res, &Item{Loc: i.Loc, LastMod: i.LastMod})
+	}
+	return res, err
 }
 
 func SiteMapIndex(folder, indexFile, baseurl string) error {
